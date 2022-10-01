@@ -1,14 +1,13 @@
-use bevy::{
-    prelude::*,
-    render::camera::RenderTarget,
-};
+use bevy::{prelude::*, render::camera::RenderTarget};
 
 mod hexes;
+mod tower;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(hexes::HexPlugin)
+        .add_plugin(tower::TowerPlugin)
         .insert_resource(MouseWorldPos(Vec2::ZERO))
         .add_startup_system(setup)
         .add_system(update_mouse_position)
