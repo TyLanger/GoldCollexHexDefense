@@ -1,8 +1,11 @@
-use bevy::{prelude::*, render::camera::{RenderTarget, ScalingMode}};
+use bevy::{
+    prelude::*,
+    render::camera::{RenderTarget, ScalingMode},
+};
 
+mod gold;
 mod hexes;
 mod tower;
-mod gold;
 
 fn main() {
     App::new()

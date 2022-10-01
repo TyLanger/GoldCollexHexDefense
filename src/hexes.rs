@@ -5,7 +5,7 @@ use bevy::{
 
 use crate::MouseWorldPos;
 
-const DEG_TO_RAD: f32 = 0.01745;
+pub const DEG_TO_RAD: f32 = 0.01745;
 const HEX_SPACING: f32 = 0.86602540378;
 
 pub struct HexPlugin;
@@ -17,7 +17,7 @@ impl Plugin for HexPlugin {
             .add_system(spawn_hex)
             .add_system(highlight_hex.before(select_hex))
             .add_system(select_hex);
-            //.add_system(colour_neighbours.after(highlight_hex));
+        //.add_system(colour_neighbours.after(highlight_hex));
         // the way selection is added and removed can mess these up
         // but I don't really know how to guarantee it.
         // are queries set at the start of the frame
