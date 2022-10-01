@@ -16,12 +16,12 @@ impl Plugin for HexPlugin {
             .add_startup_system(setup)
             .add_system(spawn_hex)
             .add_system(highlight_hex.before(select_hex))
-            .add_system(select_hex)
-            .add_system(colour_neighbours.after(highlight_hex));
-            // the way selection is added and removed can mess these up
-            // but I don't really know how to guarantee it.
-            // are queries set at the start of the frame
-            // or are they made when that system runs?
+            .add_system(select_hex);
+            //.add_system(colour_neighbours.after(highlight_hex));
+        // the way selection is added and removed can mess these up
+        // but I don't really know how to guarantee it.
+        // are queries set at the start of the frame
+        // or are they made when that system runs?
     }
 }
 
@@ -32,12 +32,10 @@ struct HexSpawnEvent {
 }
 
 #[derive(Component)]
-struct Hex {
+pub struct Hex {
     radius: f32,
-    coords: HexCoords,
+    pub coords: HexCoords,
 }
-
-
 
 #[derive(Component)]
 pub struct Selection;
@@ -55,7 +53,7 @@ fn highlight_hex(
             commands.entity(ent).insert(Selection);
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::TURQUOISE;
+            color_mat.color = Color::MIDNIGHT_BLUE;
         }
     }
 }
@@ -73,7 +71,7 @@ fn select_hex(
             mouse.0.extend(0.0),
             Vec2::new(0.1, 0.1),
             trans.translation,
-            Vec2::new(1.6 * hex.radius, 1.6 * hex.radius),
+            Vec2::new(1.6 * hex.radius, 1.8 * hex.radius),
         ) {
             return;
         } else {
@@ -118,7 +116,7 @@ fn colour_neighbours(
 }
 
 fn setup(ev_spawn: EventWriter<HexSpawnEvent>) {
-    spawn_hexes(ev_spawn, 4, 20., Vec2::ZERO);
+    spawn_hexes(ev_spawn, 7, 20., Vec2::ZERO);
 }
 
 fn spawn_hexes(
@@ -249,7 +247,7 @@ fn spawn_hex(
                     .add(shape::RegularPolygon::new(radius, 6).into())
                     .into(),
                 material: materials.add(ColorMaterial::from(Color::TURQUOISE)),
-                transform: Transform::from_translation(position.extend(0.))
+                transform: Transform::from_translation(position.extend(0.1))
                     .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()
             })
@@ -258,7 +256,7 @@ fn spawn_hex(
 }
 
 #[derive(Clone, Copy, Debug)]
-struct HexCoords {
+pub struct HexCoords {
     // center tile is 0,0
     // tile above is 1,0
     // tile to the top-right is 1,1
@@ -272,11 +270,10 @@ struct HexCoords {
 }
 
 impl HexCoords {
-    fn is_same(self, other: HexCoords) -> bool {
-        return 
-        self.level == other.level && 
-        self.position == other.position && 
-        self.offset == other.offset;
+    pub fn is_same(self, other: HexCoords) -> bool {
+        return self.level == other.level
+            && self.position == other.position
+            && self.offset == other.offset;
     }
 
     fn _print_neighbours(self) {
@@ -284,8 +281,7 @@ impl HexCoords {
         println!("Neighbours: {:?}", n);
     }
 
-    fn get_neighbours(self) -> [HexCoords; 6]{
-
+    pub fn get_neighbours(self) -> [HexCoords; 6] {
         match self.level {
             0 => {
                 //println!("Center tile");
@@ -319,7 +315,7 @@ impl HexCoords {
                     position: 5,
                     offset: 0,
                 };
-                return [a,b,c,d,e,f];
+                return [a, b, c, d, e, f];
             }
             1 => {
                 // same level
@@ -359,7 +355,7 @@ impl HexCoords {
                 //     "Neighbours are: {:?}; {:?}; {:?}; {:?}; {:?}; {:?};",
                 //     a, b, c, d, e, f
                 // );
-                return [a,b,c,d,e,f];
+                return [a, b, c, d, e, f];
             }
             _ => {
                 let a;
@@ -407,8 +403,8 @@ impl HexCoords {
                         position: self.position,
                         offset: 1,
                     };
-                    
-                    return [a,b,c,d,e,f];
+
+                    return [a, b, c, d, e, f];
                 } else {
                     // 2 inner, 2 same, 2 outer
                     // example: (2, 0, 1); (3, 2, 2)
@@ -433,7 +429,7 @@ impl HexCoords {
                             offset: self.offset + 1,
                         };
                     }
-                    
+
                     // inner (center)
                     c = HexCoords {
                         level: self.level - 1,
@@ -453,7 +449,7 @@ impl HexCoords {
                             offset: self.offset,
                         };
                     }
-                    
+
                     // outer
                     e = HexCoords {
                         level: self.level + 1,
@@ -465,11 +461,10 @@ impl HexCoords {
                         position: self.position,
                         offset: self.offset + 1,
                     };
-                    
-                    return [a,b,c,d,e,f];
+
+                    return [a, b, c, d, e, f];
                 }
             }
-            
         }
     }
 }

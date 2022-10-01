@@ -1,13 +1,15 @@
-use bevy::{prelude::*, render::camera::RenderTarget};
+use bevy::{prelude::*, render::camera::{RenderTarget, ScalingMode}};
 
 mod hexes;
 mod tower;
+mod gold;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(hexes::HexPlugin)
         .add_plugin(tower::TowerPlugin)
+        .add_plugin(gold::GoldPlugin)
         .insert_resource(MouseWorldPos(Vec2::ZERO))
         .add_startup_system(setup)
         .add_system(update_mouse_position)
@@ -17,7 +19,13 @@ fn main() {
 struct MouseWorldPos(Vec2);
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn_bundle(Camera2dBundle {
+        projection: OrthographicProjection {
+            scaling_mode: ScalingMode::FixedVertical(700.),
+            ..default()
+        },
+        ..default()
+    });
 }
 
 fn update_mouse_position(
