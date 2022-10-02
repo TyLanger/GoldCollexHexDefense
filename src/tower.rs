@@ -1,22 +1,19 @@
 use bevy::prelude::*;
 
-use crate::{
-    gold::{GoldPile, PileCapEvent},
-    hexes::*, palette::*,
-};
+use crate::{gold::*, hexes::*, palette::*};
 
 pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<SpawnTowerEvent>()
-            .add_event::<TowerBuiltEvent>()
+        app.add_event::<TowerBuiltEvent>()
             .add_event::<PlaceTowerPreviewEvent>()
-            .add_system(spawn_tower)
+            //.add_system(spawn_tower)
             //.add_system(tower_input)
             .add_system(tower_mouse_input)
             .add_system(spawn_tower_preview)
-            .add_system(preview_paid_for);
+            .add_system(preview_paid_for)
+            .add_system(remove_tower);
         //.add_system(rotate_sprite);
     }
 }
@@ -24,6 +21,7 @@ impl Plugin for TowerPlugin {
 #[derive(Component)]
 pub struct Tower {
     pub coords: HexCoords,
+    pub refund: u32,
 }
 
 #[derive(Component)]
@@ -36,12 +34,6 @@ pub struct PreviewTowerBundle {
 }
 
 struct PlaceTowerPreviewEvent {
-    position: Vec3,
-    coords: HexCoords,
-}
-
-// try to build a tower here
-struct SpawnTowerEvent {
     position: Vec3,
     coords: HexCoords,
 }
@@ -68,21 +60,6 @@ pub struct TowerBuiltEvent {
 //         // add a component, run a timer, remove component?
 //     }
 // }
-
-fn tower_input(
-    mut ev_spawn_tower: EventWriter<SpawnTowerEvent>,
-    q_selection: Query<(&Transform, &Hex), With<Selection>>,
-    input: Res<Input<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::Space) {
-        for (trans, hex) in q_selection.iter() {
-            ev_spawn_tower.send(SpawnTowerEvent {
-                position: trans.translation,
-                coords: hex.coords,
-            });
-        }
-    }
-}
 
 fn tower_mouse_input(
     mut ev_place_preview: EventWriter<PlaceTowerPreviewEvent>,
@@ -148,14 +125,13 @@ fn spawn_tower_preview(
 fn preview_paid_for(
     mut commands: Commands,
     mut ev_pile_cap: EventReader<PileCapEvent>,
-    mut ev_tower_built: EventWriter<TowerBuiltEvent>,
-    q_preview_towers: Query<(Entity, &Children, &Hex), (With<TowerPreview>, With<GoldPile>)>,
+    q_preview_towers: Query<(Entity, &Children, &Hex, &GoldPile), With<TowerPreview>>,
     mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_pile_cap.iter() {
-        for (ent, children, hex) in q_preview_towers.iter() {
+        for (ent, children, hex, pile) in q_preview_towers.iter() {
             if ev.coords.is_same(hex.coords) {
-                println!("Upgrade {:?}", hex.coords);
+                //println!("Upgrade {:?}", hex.coords);
 
                 // change the color of the preview to a tower color
                 for &child in children.iter() {
@@ -174,52 +150,91 @@ fn preview_paid_for(
                     .entity(ent)
                     //.remove_children(children)
                     .remove_bundle::<PreviewTowerBundle>()
-                    .insert(Tower { coords: ev.coords });
+                    .insert(Tower {
+                        coords: ev.coords,
+                        refund: (pile.gold_cap as f32 * 0.8) as u32,
+                    })
+                    .insert(GoldSpawner::new());
 
-                ev_tower_built.send(TowerBuiltEvent { coords: ev.coords });
                 break;
             }
         }
     }
 }
 
-fn spawn_tower(
+fn remove_tower(
     mut commands: Commands,
-    mut ev_spawn_tower: EventReader<SpawnTowerEvent>,
-    mut ev_tower_built: EventWriter<TowerBuiltEvent>,
-    q_towers: Query<&Tower>,
+    mut ev_remove: EventReader<PileRemoveEvent>,
+    mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
+    q_towers: Query<(
+        Entity,
+        &Children,
+        &Transform,
+        &Hex,
+        Option<&GoldPile>,
+        Option<&TowerPreview>,
+        Option<&Tower>,
+    )>,
+    //mut q_child: Query<&mut Sprite>,
 ) {
-    for ev in ev_spawn_tower.iter() {
-        let mut can_spawn = true;
-        for tower in q_towers.iter() {
-            if tower.coords.is_same(ev.coords) {
-                can_spawn = false;
-                println!("Spawn failed. Tower already here");
-                break;
-            }
-        }
+    for ev in ev_remove.iter() {
+        for (ent, children, trans, hex, _opt_pile, opt_preview, opt_tower) in q_towers.iter() {
+            if ev.coords.is_same(hex.coords) {
+                let mut opt_count = 0;
+                if let Some(_) = opt_preview {
+                    opt_count += 1;
+                }
+                if let Some(_) = opt_tower {
+                    opt_count += 1;
+                }
+                if opt_count == 0 {
+                    println!("No optionals");
+                    break;
+                }
 
-        if can_spawn {
-            commands
-                .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::rgb(0.25, 0.25, 0.75),
-                        custom_size: Some(Vec2::new(20.0, 20.0)),
-                        ..default()
-                    },
-                    transform: Transform {
-                        translation: Vec3 {
-                            x: ev.position.x,
-                            y: ev.position.y,
-                            z: 0.2,
-                        },
-                        ..default()
-                    },
-                    ..default()
-                })
-                .insert(Tower { coords: ev.coords });
-            //println!("Built a tower");
-            ev_tower_built.send(TowerBuiltEvent { coords: ev.coords });
+                let mut pile_count = 0;
+
+                // if let Some(pile) = opt_pile {
+                //     pile_count = pile.count;
+
+                // } else
+                if let Some(tower) = opt_tower {
+                    pile_count = tower.refund;
+                }
+                //println!("Pile count: {:?}", pile_count);
+
+                for _ in 0..pile_count {
+                    ev_spawn_gold.send(SpawnGoldEvent {
+                        position: trans.translation,
+                    });
+                }
+
+                for &child in children {
+                    //println!("despawning children");
+                    // runs once
+                    commands.entity(child).despawn_recursive();
+                }
+
+                match opt_preview {
+                    Some(_) => {
+                        commands.entity(ent).remove::<TowerPreview>();
+                    }
+                    None => {
+                        //println!("No Preview");
+                    }
+                }
+
+                match opt_tower {
+                    Some(_) => {
+                        commands.entity(ent).remove::<GoldSpawner>();
+                        commands.entity(ent).remove::<Tower>();
+                        // remove surrounding spawners
+                    }
+                    None => {
+                        //println!("No Tower");
+                    }
+                }
+            }
         }
     }
 }

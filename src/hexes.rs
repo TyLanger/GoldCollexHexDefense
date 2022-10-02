@@ -3,7 +3,7 @@ use bevy::{
     sprite::{collide_aabb::collide, MaterialMesh2dBundle},
 };
 
-use crate::{MouseWorldPos, palette::*};
+use crate::{palette::*, MouseWorldPos};
 
 pub const DEG_TO_RAD: f32 = 0.01745;
 const HEX_SPACING: f32 = 0.86602540378;

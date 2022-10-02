@@ -4,7 +4,7 @@ use bevy::utils::Duration;
 
 use crate::hexes::{Hex, HexCoords, Selection, DEG_TO_RAD};
 use crate::palette::*;
-use crate::tower::{Tower, TowerBuiltEvent, TowerPreview};
+use crate::tower::{Tower, TowerPreview};
 use crate::MouseWorldPos;
 
 pub struct GoldPlugin;
@@ -22,8 +22,9 @@ impl Plugin for GoldPlugin {
             .add_system(remove_pile)
             .add_system(generate_gold)
             .add_system(spawn_gold)
-            .add_system(place_spawner)
-            .add_system(remove_spawner)
+            //.add_system(place_spawner)
+            //.add_system(remove_spawner)
+            //.add_system(check_spawner)
             .add_system(move_gold)
             .add_system(check_mouse)
             .add_system(store_gold);
@@ -45,8 +46,8 @@ impl GoldSpawner {
     }
 }
 
-struct SpawnGoldEvent {
-    position: Vec3,
+pub struct SpawnGoldEvent {
+    pub position: Vec3,
 }
 
 pub struct ModifySpawnerEvent {
@@ -74,8 +75,8 @@ const GOLD_MOVE_SPEED: f32 = 225.0;
 
 #[derive(Component)]
 pub struct GoldPile {
-    count: u32,
-    gold_cap: u32,
+    pub count: u32,
+    pub gold_cap: u32,
 }
 
 impl GoldPile {
@@ -240,15 +241,26 @@ fn pile_input(
 }
 
 fn generate_gold(
-    mut q_gold_spawners: Query<(&Transform, &mut GoldSpawner)>,
+    mut q_gold_spawners: Query<(&Hex, &mut GoldSpawner)>,
+    q_empty_hexes: Query<(&Transform, &Hex), (Without<Tower>, Without<GoldPile>)>,
     mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
     time: Res<Time>,
 ) {
-    for (trans, mut spawner) in q_gold_spawners.iter_mut() {
+    for (hex, mut spawner) in q_gold_spawners.iter_mut() {
         if spawner.timer.tick(time.delta()).just_finished() {
-            ev_gold_spawn.send(SpawnGoldEvent {
-                position: trans.translation,
-            });
+            // spawn around you
+            let neighbours = hex.coords.get_neighbours();
+            for &n in neighbours.iter() {
+                // check if I can spawn
+                for (trans2, hex2) in q_empty_hexes.iter() {
+                    if n.is_same(hex2.coords) {
+                        // empty space
+                        ev_gold_spawn.send(SpawnGoldEvent {
+                            position: trans2.translation,
+                        });
+                    }
+                }
+            }
         }
     }
 }
@@ -276,52 +288,119 @@ fn spawn_gold(mut commands: Commands, mut ev_gold_spawn: EventReader<SpawnGoldEv
     }
 }
 
-fn remove_spawner(
-    mut commands: Commands,
-    mut ev_tower_built: EventReader<TowerBuiltEvent>,
-    q_spawners: Query<(Entity, &Hex), With<GoldSpawner>>,
-) {
-    for ev in ev_tower_built.iter() {
-        for (ent, hex) in q_spawners.iter() {
-            if ev.coords.is_same(hex.coords) {
-                commands.entity(ent).remove::<GoldSpawner>();
-                // no other hexes will have the same coords.
-                // move on to the next event
-                break;
-            }
-        }
-    }
-}
+// fn remove_spawner(
+//     mut commands: Commands,
+//     mut ev_tower_built: EventReader<TowerBuiltEvent>,
+//     mut ev_spawner_modify: EventReader<ModifySpawnerEvent>,
+//     q_spawners: Query<(Entity, &Hex), With<GoldSpawner>>,
+// ) {
+//     for ev in ev_tower_built.iter() {
+//         for (ent, hex) in q_spawners.iter() {
+//             if ev.coords.is_same(hex.coords) {
+//                 commands.entity(ent).remove::<GoldSpawner>();
+//                 // no other hexes will have the same coords.
+//                 // move on to the next event
+//                 break;
+//             }
+//         }
+//     }
+//     for ev in ev_spawner_modify.iter() {
+//         match ev.modification {
+//             Modification::Remove => {
+//                 for (ent, hex) in q_spawners.iter() {
+//                     if ev.coords.is_same(hex.coords) {
+//                         commands.entity(ent).remove::<GoldSpawner>();
+//                         // no other hexes will have the same coords.
+//                         // move on to the next event
+//                         break;
+//                     }
+//                 }
+//             }
+//             _ => {}
+//         }
+//     }
+// }
 
-fn place_spawner(
-    mut commands: Commands,
-    mut ev_tower_built: EventReader<TowerBuiltEvent>,
-    q_hexes: Query<(Entity, &Hex), Without<GoldSpawner>>,
-    q_tower: Query<&Tower>,
-) {
-    for ev in ev_tower_built.iter() {
-        let neighbours = ev.coords.get_neighbours();
+// fn check_spawner(
+//     mut ev_tower_remove: EventReader<TowerRemoveEvent>,
+//     mut ev_remove_spawner: EventWriter<ModifySpawnerEvent>,
+//     q_spawners: Query<&Hex, With<GoldSpawner>>,
+//     q_towers: Query<&Hex, With<Tower>>,
+// ) {
+//     // when a tower is deleted
+//     // check if the spawners still have a dependant tower
 
-        for (ent, hex) in q_hexes.iter() {
-            for n in neighbours.iter() {
-                let mut tower_there = false;
-                for t in q_tower.iter() {
-                    // don't spawn if there is already a tower there
-                    // towers are on top of a hex, not inserted
-                    // so can't do Without<Tower>
-                    // But maybe they should be
-                    if t.coords.is_same(hex.coords) {
-                        tower_there = true;
-                    }
-                }
-                if n.is_same(hex.coords) && !tower_there {
-                    //println!("Placed a gold spawner");
-                    commands.entity(ent).insert(GoldSpawner::new());
-                }
-            }
-        }
-    }
-}
+//     // old tower hex
+//     // its neighbours
+//     // for each neighbour,
+//     // check their neighbours for towers
+
+//     // works mostly
+//     // if the tower you delete is blocking a spot where a spawner could go
+//     // it doesn't get spawned so there is a gap
+//     // and the timing is off
+
+//     for ev in ev_tower_remove.iter() {
+//         let neighbours = ev.coords.get_neighbours();
+
+//         for &n in neighbours.iter() {
+//             let mut has_tower = false;
+//             let neighbours2 = n.get_neighbours();
+//             for &n2 in neighbours2.iter() {
+//                 for tower_hex in q_towers.iter() {
+//                     if n2.is_same(tower_hex.coords) {
+//                         has_tower = true;
+//                         break; // x2
+//                     }
+//                 }
+//                 if has_tower {
+//                     break;
+//                 }
+//             }
+//             if !has_tower {
+//                 println!("Remove a spawner at: {:?}", n);
+//                 ev_remove_spawner.send(ModifySpawnerEvent {
+//                     coords: n,
+//                     modification: Modification::Remove,
+//                 });
+//             }
+//             else {
+//                 println!("Skipping spawner at: {:?}", n);
+
+//             }
+//         }
+//     }
+// }
+
+// fn place_spawner(
+//     mut commands: Commands,
+//     mut ev_tower_built: EventReader<TowerBuiltEvent>,
+//     q_hexes: Query<(Entity, &Hex), Without<GoldSpawner>>,
+//     q_tower: Query<&Tower>,
+// ) {
+//     for ev in ev_tower_built.iter() {
+//         let neighbours = ev.coords.get_neighbours();
+
+//         for (ent, hex) in q_hexes.iter() {
+//             for n in neighbours.iter() {
+//                 let mut tower_there = false;
+//                 for t in q_tower.iter() {
+//                     // don't spawn if there is already a tower there
+//                     // towers are on top of a hex, not inserted
+//                     // so can't do Without<Tower>
+//                     // But maybe they should be
+//                     if t.coords.is_same(hex.coords) {
+//                         tower_there = true;
+//                     }
+//                 }
+//                 if n.is_same(hex.coords) && !tower_there {
+//                     //println!("Placed a gold spawner");
+//                     commands.entity(ent).insert(GoldSpawner::new());
+//                 }
+//             }
+//         }
+//     }
+// }
 
 fn check_mouse(
     mut commands: Commands,
