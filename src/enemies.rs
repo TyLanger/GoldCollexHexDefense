@@ -3,6 +3,7 @@ use bevy::utils::Duration;
 use bevy::{prelude::*, utils::FloatOrd};
 use rand::prelude::*;
 
+use crate::boids::Boid;
 use crate::{gold::Gold, palette::*};
 
 pub struct EnemyPlugin;
@@ -20,7 +21,7 @@ impl Plugin for EnemyPlugin {
 }
 
 #[derive(Component)]
-struct Enemy {
+pub struct Enemy {
     has_gold: bool,
 }
 
@@ -41,7 +42,7 @@ struct SpawnEnemyEvent {
 
 fn setup(mut commands: Commands) {
     commands.spawn().insert(EnemySpawner {
-        timer: Timer::new(Duration::from_secs(2), true),
+        timer: Timer::new(Duration::from_secs(10), true),
     });
 }
 
@@ -81,11 +82,12 @@ fn spawn_enemy(mut commands: Commands, mut ev_spawn_enemy: EventReader<SpawnEnem
                 },
                 ..default()
             })
-            .insert(Enemy::new());
+            .insert(Enemy::new())
+            .insert(Boid::new());
     }
 }
 
-fn move_enemies(
+pub fn move_enemies(
     mut q_enemies: Query<(&mut Transform, &Enemy)>,
     q_gold: Query<&Transform, (With<Gold>, Without<Enemy>)>,
     time: Res<Time>,

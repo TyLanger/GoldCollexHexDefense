@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use bevy::utils::Duration;
 
+use crate::boids::Boid;
 use crate::hexes::{Hex, HexCoords, Selection, DEG_TO_RAD};
 use crate::palette::*;
 use crate::tower::{Tower, TowerPreview};
@@ -16,12 +17,16 @@ impl Plugin for GoldPlugin {
             .add_event::<PileSpawnEvent>()
             .add_event::<PileRemoveEvent>()
             .add_event::<SpawnGoldEvent>()
+            .add_event::<DelayedGoldEvent>()
+            .add_event::<DelayedGoldEventHelper>()
             .add_startup_system(setup)
             .add_system(pile_input)
             .add_system(spawn_pile)
             .add_system(remove_pile)
             .add_system(generate_gold)
             .add_system(spawn_gold)
+            .add_system(delay_gold)
+            .add_system(delay_gold_helper)
             //.add_system(place_spawner)
             //.add_system(remove_spawner)
             //.add_system(check_spawner)
@@ -40,7 +45,7 @@ pub struct GoldSpawner {
 impl GoldSpawner {
     pub fn new() -> Self {
         GoldSpawner {
-            timer: Timer::new(Duration::from_secs_f32(10.0), true),
+            timer: Timer::new(Duration::from_secs_f32(3.0), true),
             gold_gen: 1,
         }
     }
@@ -65,7 +70,7 @@ pub enum Modification {
 pub struct Gold;
 
 #[derive(Component)]
-struct MouseFollow;
+pub struct MouseFollow;
 
 // need to move mouse close to pick up gold
 // but then need to move farther away to break the tether and drop it
@@ -211,7 +216,7 @@ fn remove_pile(
                 for &child in children {
                     //println!("despawning children");
                     // runs once
-                    commands.entity(child).despawn();
+                    commands.entity(child).despawn_recursive();
                 }
 
                 commands
@@ -253,7 +258,7 @@ fn generate_gold(
         if spawner.timer.tick(time.delta()).just_finished() {
             // spawn around you
             let neighbours = hex.coords.get_neighbours();
-            for &n in neighbours.iter() {
+            for (i, &n) in neighbours.iter().enumerate() {
                 // check if I can spawn
                 for (trans2, mut hex2) in q_empty_hexes.iter_mut() {
                     if n.is_same(hex2.coords) {
@@ -263,11 +268,72 @@ fn generate_gold(
                         if hex2.mine() {
                             ev_gold_spawn.send(SpawnGoldEvent {
                                 position: trans2.translation,
+                                //frame: (i*10)+1,
                             });
+                            break;
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+struct DelayedGoldEvent {
+    position: Vec3,
+    frame: usize,
+}
+
+struct DelayedGoldEventHelper {
+    position: Vec3,
+    frame: usize,
+}
+
+fn delay_gold(
+    mut ev_gold_in: EventReader<DelayedGoldEvent>,
+    mut ev_gold_out: EventWriter<DelayedGoldEventHelper>,
+    mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
+) {
+    // if !ev_gold_in.is_empty() {
+    //     println!("delay gold, len: {:?}", ev_gold_in.len());
+    // }
+    for read in ev_gold_in.iter() {
+        let frame = read.frame - 1;
+        if frame == 0 {
+            ev_gold_spawn.send(SpawnGoldEvent {
+                position: read.position,
+            });
+        } else {
+            ev_gold_out.send(DelayedGoldEventHelper {
+                position: read.position,
+                frame,
+            });
+        }
+    }
+}
+
+// can't have Reader<A> and Writer<A> in the same system
+// this is the loophole
+// but it still doesn't look great
+fn delay_gold_helper(
+    mut ev_gold_in: EventReader<DelayedGoldEventHelper>,
+    mut ev_gold_out: EventWriter<DelayedGoldEvent>,
+    mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
+) {
+    // if !ev_gold_in.is_empty() {
+    //     println!("delay gold helper, len: {:?}", ev_gold_in.len());
+    // }
+    for read in ev_gold_in.iter() {
+        let frame = read.frame - 1;
+        if frame == 0 {
+            ev_gold_spawn.send(SpawnGoldEvent {
+                position: read.position,
+            });
+        } else {
+            ev_gold_out.send(DelayedGoldEvent {
+                position: read.position,
+                frame,
+            });
         }
     }
 }
@@ -291,7 +357,8 @@ fn spawn_gold(mut commands: Commands, mut ev_gold_spawn: EventReader<SpawnGoldEv
                 },
                 ..default()
             })
-            .insert(Gold);
+            .insert(Gold)
+            .insert(Boid::new());
     }
 }
 
