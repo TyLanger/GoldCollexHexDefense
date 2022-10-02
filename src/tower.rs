@@ -13,7 +13,7 @@ impl Plugin for TowerPlugin {
             .add_event::<TowerBuiltEvent>()
             .add_event::<PlaceTowerPreviewEvent>()
             .add_system(spawn_tower)
-            .add_system(tower_input)
+            //.add_system(tower_input)
             .add_system(tower_mouse_input)
             .add_system(spawn_tower_preview)
             .add_system(preview_paid_for);
@@ -146,13 +146,37 @@ fn spawn_tower_preview(
 }
 
 fn preview_paid_for(
+    mut commands: Commands,
     mut ev_pile_cap: EventReader<PileCapEvent>,
-    q_preview_towers: Query<(Entity, &Hex), (With<TowerPreview>, With<GoldPile>)>,
+    mut ev_tower_built: EventWriter<TowerBuiltEvent>,
+    q_preview_towers: Query<(Entity, &Children, &Hex), (With<TowerPreview>, With<GoldPile>)>,
+    mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_pile_cap.iter() {
-        for (ent, hex) in q_preview_towers.iter() {
+        for (ent, children, hex) in q_preview_towers.iter() {
             if ev.coords.is_same(hex.coords) {
                 println!("Upgrade {:?}", hex.coords);
+
+                // change the color of the preview to a tower color
+                for &child in children.iter() {
+                    let sprite = q_child.get_mut(child);
+                    match sprite {
+                        Ok(mut s) => {
+                            s.color = Color::rgb(0.95, 0.25, 0.25);
+                        }
+                        Err(e) => {
+                            error!("Error getting child sprite: {e}");
+                        }
+                    }
+                }
+
+                commands
+                    .entity(ent)
+                    //.remove_children(children)
+                    .remove_bundle::<PreviewTowerBundle>()
+                    .insert(Tower { coords: ev.coords });
+
+                ev_tower_built.send(TowerBuiltEvent { coords: ev.coords });
                 break;
             }
         }

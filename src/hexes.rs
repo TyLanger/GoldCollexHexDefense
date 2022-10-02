@@ -270,6 +270,14 @@ pub struct HexCoords {
 }
 
 impl HexCoords {
+    pub fn new() -> Self {
+        HexCoords {
+            level: 0,
+            position: 0,
+            offset: 0,
+        }
+    }
+
     pub fn is_same(self, other: HexCoords) -> bool {
         return self.level == other.level
             && self.position == other.position

@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use bevy::utils::Duration;
 
-use crate::hexes::{Hex, HexCoords};
-use crate::tower::{Tower, TowerBuiltEvent};
+use crate::hexes::{Hex, HexCoords, Selection, DEG_TO_RAD};
+use crate::tower::{Tower, TowerBuiltEvent, TowerPreview};
 use crate::MouseWorldPos;
 
 pub struct GoldPlugin;
@@ -12,7 +12,14 @@ impl Plugin for GoldPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ModifySpawnerEvent>()
             .add_event::<PileCapEvent>()
-            .add_startup_system(spawn_pile)
+            .add_event::<PileSpawnEvent>()
+            .add_event::<PileRemoveEvent>()
+            .add_event::<SpawnGoldEvent>()
+            .add_startup_system(setup)
+            .add_system(pile_input)
+            .add_system(spawn_pile)
+            .add_system(remove_pile)
+            .add_system(generate_gold)
             .add_system(spawn_gold)
             .add_system(place_spawner)
             .add_system(remove_spawner)
@@ -35,6 +42,10 @@ impl GoldSpawner {
             gold_gen: 1,
         }
     }
+}
+
+struct SpawnGoldEvent {
+    position: Vec3,
 }
 
 pub struct ModifySpawnerEvent {
@@ -75,7 +86,25 @@ impl GoldPile {
     }
 }
 
+pub struct PileSpawnEvent {
+    pub coords: HexCoords,
+    starting_gold: u32,
+}
+
+impl PileSpawnEvent {
+    pub fn new(coords: HexCoords) -> Self {
+        PileSpawnEvent {
+            coords: coords,
+            starting_gold: 0,
+        }
+    }
+}
+
 pub struct PileCapEvent {
+    pub coords: HexCoords,
+}
+
+pub struct PileRemoveEvent {
     pub coords: HexCoords,
 }
 
@@ -85,7 +114,7 @@ fn store_gold(
     mut q_pile: Query<(&Transform, &mut GoldPile, &Hex)>,
     mut ev_cap: EventWriter<PileCapEvent>,
 ) {
-    for (gold_ent, gold_trans, gold) in q_gold.iter() {
+    for (gold_ent, gold_trans, _gold) in q_gold.iter() {
         for (pile_trans, mut pile, hex) in q_pile.iter_mut() {
             if let Some(_) = collide(
                 gold_trans.translation,
@@ -107,48 +136,142 @@ fn store_gold(
     }
 }
 
-fn spawn_pile(mut commands: Commands) {
-    commands
-        .spawn_bundle(SpriteBundle {
-            sprite: Sprite {
-                color: Color::ANTIQUE_WHITE,
-                custom_size: Some(Vec2::new(20.0, 20.0)),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.3,
-            }),
-            ..default()
-        })
-        .insert(GoldPile::new(500));
+fn setup(mut ev_spawn: EventWriter<PileSpawnEvent>) {
+    // spawn a pile at the center with some starting cash
+    ev_spawn.send(PileSpawnEvent {
+        coords: HexCoords::new(),
+        starting_gold: 6,
+    });
 }
 
-fn spawn_gold(
+fn spawn_pile(
     mut commands: Commands,
+    mut ev_spawn: EventReader<PileSpawnEvent>,
+    q_hexes: Query<(Entity, &Hex), Without<TowerPreview>>,
+) {
+    // don't run before hexes exist
+    // this preserves the event that is send frame ~1
+    // until hexes exist on frame ~2
+    // then on frame ~3 this runs
+    // or maybe frame ~2 if this system happens to run after the hex spawn system
+    if !q_hexes.is_empty() {
+        for ev in ev_spawn.iter() {
+            for (ent, hex) in q_hexes.iter() {
+                if ev.coords.is_same(hex.coords) {
+                    commands
+                        .entity(ent)
+                        .insert(GoldPile {
+                            count: ev.starting_gold,
+                            gold_cap: 500,
+                        })
+                        .with_children(|parent| {
+                            parent.spawn_bundle(SpriteBundle {
+                                sprite: Sprite {
+                                    color: Color::ANTIQUE_WHITE,
+                                    custom_size: Some(Vec2::new(20.0, 20.0)),
+                                    ..default()
+                                },
+                                transform: Transform {
+                                    // spawn on top of the underlying hex
+                                    translation: Vec3 {
+                                        x: 0.0,
+                                        y: 0.0,
+                                        z: 0.2,
+                                    },
+                                    // undo the hex's rotation
+                                    rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+                                    ..default()
+                                },
+                                ..default()
+                            });
+                        });
+                }
+            }
+        }
+    }
+}
+
+fn remove_pile(
+    mut commands: Commands,
+    mut ev_remove: EventReader<PileRemoveEvent>,
+    mut ev_spawn_gold: EventWriter<SpawnGoldEvent>,
+    q_piles: Query<(Entity, &Children, &Transform, &Hex, &GoldPile)>,
+    //mut q_child: Query<&mut Sprite>,
+) {
+    for ev in ev_remove.iter() {
+        for (ent, children, trans, hex, pile) in q_piles.iter() {
+            if ev.coords.is_same(hex.coords) {
+                for _ in 0..pile.count {
+                    ev_spawn_gold.send(SpawnGoldEvent {
+                        position: trans.translation,
+                    });
+                }
+                for &child in children {
+                    //println!("despawning children");
+                    // runs once
+                    commands.entity(child).despawn();
+                }
+
+                commands
+                    .entity(ent)
+                    // didn't work
+                    //.remove_children(children)
+                    .remove::<GoldPile>();
+            }
+        }
+    }
+}
+
+fn pile_input(
+    input: Res<Input<KeyCode>>,
+    mut ev_spawn: EventWriter<PileSpawnEvent>,
+    mut ev_remove: EventWriter<PileRemoveEvent>,
+    q_selection: Query<(&Transform, &Hex), With<Selection>>,
+) {
+    for (_trans, hex) in q_selection.iter() {
+        if input.just_pressed(KeyCode::X) {
+            ev_remove.send(PileRemoveEvent { coords: hex.coords });
+        }
+        if input.just_pressed(KeyCode::G) {
+            ev_spawn.send(PileSpawnEvent::new(hex.coords));
+        }
+    }
+}
+
+fn generate_gold(
     mut q_gold_spawners: Query<(&Transform, &mut GoldSpawner)>,
+    mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
     time: Res<Time>,
 ) {
     for (trans, mut spawner) in q_gold_spawners.iter_mut() {
         if spawner.timer.tick(time.delta()).just_finished() {
-            //println!("spawn a gold");
-            commands
-                .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::GOLD,
-                        custom_size: Some(Vec2::new(8.0, 12.)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(Vec3 {
-                        x: trans.translation.x,
-                        y: trans.translation.y,
-                        z: 0.3,
-                    }),
-                    ..default()
-                })
-                .insert(Gold);
+            ev_gold_spawn.send(SpawnGoldEvent {
+                position: trans.translation,
+            });
         }
+    }
+}
+
+fn spawn_gold(mut commands: Commands, mut ev_gold_spawn: EventReader<SpawnGoldEvent>) {
+    for ev in ev_gold_spawn.iter() {
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::GOLD,
+                    custom_size: Some(Vec2::new(8.0, 12.)),
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3 {
+                        x: ev.position.x,
+                        y: ev.position.y,
+                        z: 0.3,
+                    },
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(Gold);
     }
 }
 
