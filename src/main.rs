@@ -3,6 +3,7 @@ use bevy::{
     render::camera::{RenderTarget, ScalingMode},
 };
 
+mod enemies;
 mod gold;
 mod hexes;
 mod input;
@@ -15,6 +16,7 @@ fn main() {
         .add_plugin(hexes::HexPlugin)
         .add_plugin(tower::TowerPlugin)
         .add_plugin(gold::GoldPlugin)
+        .add_plugin(enemies::EnemyPlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
         .add_startup_system(setup)
         .add_system(update_mouse_position)

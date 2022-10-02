@@ -138,7 +138,7 @@ fn preview_paid_for(
                     let sprite = q_child.get_mut(child);
                     match sprite {
                         Ok(mut s) => {
-                            s.color = CRIMSON;
+                            s.color = DARK_BLUE;
                         }
                         Err(e) => {
                             error!("Error getting child sprite: {e}");
