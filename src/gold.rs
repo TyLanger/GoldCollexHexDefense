@@ -40,7 +40,7 @@ pub struct GoldSpawner {
 impl GoldSpawner {
     pub fn new() -> Self {
         GoldSpawner {
-            timer: Timer::new(Duration::from_secs_f32(3.0), true),
+            timer: Timer::new(Duration::from_secs_f32(10.0), true),
             gold_gen: 1,
         }
     }
@@ -242,7 +242,10 @@ fn pile_input(
 
 fn generate_gold(
     mut q_gold_spawners: Query<(&Hex, &mut GoldSpawner)>,
-    q_empty_hexes: Query<(&Transform, &Hex), (Without<Tower>, Without<GoldPile>)>,
+    mut q_empty_hexes: Query<
+        (&Transform, &mut Hex),
+        (Without<Tower>, Without<GoldPile>, Without<GoldSpawner>),
+    >,
     mut ev_gold_spawn: EventWriter<SpawnGoldEvent>,
     time: Res<Time>,
 ) {
@@ -252,12 +255,16 @@ fn generate_gold(
             let neighbours = hex.coords.get_neighbours();
             for &n in neighbours.iter() {
                 // check if I can spawn
-                for (trans2, hex2) in q_empty_hexes.iter() {
+                for (trans2, mut hex2) in q_empty_hexes.iter_mut() {
                     if n.is_same(hex2.coords) {
                         // empty space
-                        ev_gold_spawn.send(SpawnGoldEvent {
-                            position: trans2.translation,
-                        });
+
+                        // mine and return success
+                        if hex2.mine() {
+                            ev_gold_spawn.send(SpawnGoldEvent {
+                                position: trans2.translation,
+                            });
+                        }
                     }
                 }
             }

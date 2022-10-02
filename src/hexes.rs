@@ -16,7 +16,8 @@ impl Plugin for HexPlugin {
             .add_startup_system(setup)
             .add_system(spawn_hex)
             .add_system(highlight_hex.before(select_hex))
-            .add_system(select_hex);
+            .add_system(select_hex)
+            .add_system(gather_gold);
         //.add_system(colour_neighbours.after(highlight_hex));
         // the way selection is added and removed can mess these up
         // but I don't really know how to guarantee it.
@@ -35,6 +36,31 @@ struct HexSpawnEvent {
 pub struct Hex {
     radius: f32,
     pub coords: HexCoords,
+    // gold available to be mined
+    pub gold: u32,
+    max_gold: u32,
+    // when gold increments
+    timer: Timer,
+}
+
+impl Hex {
+    pub fn new(radius: f32, coords: HexCoords) -> Self {
+        Hex {
+            radius,
+            coords,
+            gold: 1,
+            max_gold: 3,
+            timer: Timer::from_seconds(7.5, true),
+        }
+    }
+
+    pub fn mine(&mut self) -> bool {
+        if self.gold > 1 {
+            self.gold -= 1;
+            return true;
+        }
+        return false;
+    }
 }
 
 #[derive(Component)]
@@ -92,6 +118,16 @@ fn select_hex(
             // println!("Selected: {:?}", hex.coords);
             // println!("Neighbours: {:?}", hex.coords.print_neighbours());
             return;
+        }
+    }
+}
+
+fn gather_gold(mut q_hexes: Query<&mut Hex>, time: Res<Time>) {
+    for mut hex in q_hexes.iter_mut() {
+        if hex.timer.tick(time.delta()).just_finished() {
+            if hex.gold < hex.max_gold {
+                hex.gold += 1;
+            }
         }
     }
 }
@@ -251,7 +287,7 @@ fn spawn_hex(
                     .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()
             })
-            .insert(Hex { radius, coords });
+            .insert(Hex::new(radius, coords));
     }
 }
 
