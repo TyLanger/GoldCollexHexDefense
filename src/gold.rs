@@ -3,6 +3,7 @@ use bevy::sprite::collide_aabb::collide;
 use bevy::utils::Duration;
 
 use crate::hexes::{Hex, HexCoords, Selection, DEG_TO_RAD};
+use crate::palette::*;
 use crate::tower::{Tower, TowerBuiltEvent, TowerPreview};
 use crate::MouseWorldPos;
 
@@ -167,7 +168,7 @@ fn spawn_pile(
                         .with_children(|parent| {
                             parent.spawn_bundle(SpriteBundle {
                                 sprite: Sprite {
-                                    color: Color::ANTIQUE_WHITE,
+                                    color: ORANGE,
                                     custom_size: Some(Vec2::new(20.0, 20.0)),
                                     ..default()
                                 },
@@ -257,7 +258,7 @@ fn spawn_gold(mut commands: Commands, mut ev_gold_spawn: EventReader<SpawnGoldEv
         commands
             .spawn_bundle(SpriteBundle {
                 sprite: Sprite {
-                    color: Color::GOLD,
+                    color: GOLD,
                     custom_size: Some(Vec2::new(8.0, 12.)),
                     ..default()
                 },

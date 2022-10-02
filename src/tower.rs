@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     gold::{GoldPile, PileCapEvent},
-    hexes::*,
+    hexes::*, palette::*,
 };
 
 pub struct TowerPlugin;
@@ -119,7 +119,7 @@ fn spawn_tower_preview(
                     .with_children(|parent| {
                         parent.spawn_bundle(SpriteBundle {
                             sprite: Sprite {
-                                color: Color::rgb(0.35, 0.85, 0.85),
+                                color: LIGHT_BLUE,
                                 custom_size: Some(Vec2::new(20.0, 20.0)),
                                 ..default()
                             },
@@ -162,7 +162,7 @@ fn preview_paid_for(
                     let sprite = q_child.get_mut(child);
                     match sprite {
                         Ok(mut s) => {
-                            s.color = Color::rgb(0.95, 0.25, 0.25);
+                            s.color = CRIMSON;
                         }
                         Err(e) => {
                             error!("Error getting child sprite: {e}");

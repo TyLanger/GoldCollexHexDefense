@@ -3,7 +3,7 @@ use bevy::{
     sprite::{collide_aabb::collide, MaterialMesh2dBundle},
 };
 
-use crate::MouseWorldPos;
+use crate::{MouseWorldPos, palette::*};
 
 pub const DEG_TO_RAD: f32 = 0.01745;
 const HEX_SPACING: f32 = 0.86602540378;
@@ -48,12 +48,12 @@ fn highlight_hex(
     for (ent, color_handle, select) in q_hex.iter_mut() {
         if let Some(_) = select {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::SILVER;
+            color_mat.color = YELLOW_WHITE;
 
             commands.entity(ent).insert(Selection);
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = Color::MIDNIGHT_BLUE;
+            color_mat.color = BLUE;
         }
     }
 }
@@ -246,7 +246,7 @@ fn spawn_hex(
                 mesh: meshes
                     .add(shape::RegularPolygon::new(radius, 6).into())
                     .into(),
-                material: materials.add(ColorMaterial::from(Color::TURQUOISE)),
+                material: materials.add(ColorMaterial::from(BLUE)),
                 transform: Transform::from_translation(position.extend(0.1))
                     .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()

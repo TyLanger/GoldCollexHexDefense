@@ -5,6 +5,7 @@ use bevy::{
 
 mod gold;
 mod hexes;
+mod palette;
 mod tower;
 
 fn main() {
