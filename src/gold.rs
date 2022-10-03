@@ -340,21 +340,27 @@ fn delay_gold_helper(
     }
 }
 
-fn spawn_gold(mut commands: Commands, mut ev_gold_spawn: EventReader<SpawnGoldEvent>) {
+fn spawn_gold(
+    mut commands: Commands,
+    mut ev_gold_spawn: EventReader<SpawnGoldEvent>,
+    asset_server: Res<AssetServer>,
+) {
     for ev in ev_gold_spawn.iter() {
         commands
             .spawn_bundle(SpriteBundle {
-                sprite: Sprite {
-                    color: GOLD,
-                    custom_size: Some(Vec2::new(8.0, 12.)),
-                    ..default()
-                },
+                texture: asset_server.load("sprites/gold2.png"),
+                // sprite: Sprite {
+                //     color: GOLD,
+                //     custom_size: Some(Vec2::new(8.0, 12.)),
+                //     ..default()
+                // },
                 transform: Transform {
                     translation: Vec3 {
                         x: ev.position.x,
                         y: ev.position.y,
                         z: 0.3,
                     },
+                    scale: Vec3::ONE * 2.0,
                     ..default()
                 },
                 ..default()

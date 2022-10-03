@@ -13,6 +13,7 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEnemyEvent>()
+            .insert_resource(EnemySpawnInfo {group_size: 10,})
             .add_startup_system(setup)
             .add_system(generate_enemies)
             .add_system(spawn_enemy)
@@ -50,6 +51,10 @@ struct SpawnEnemyEvent {
     position: Vec3,
 }
 
+struct EnemySpawnInfo {
+    group_size: u32,
+}
+
 fn setup(mut commands: Commands) {
     commands.spawn().insert(EnemySpawner {
         timer: Timer::new(Duration::from_secs_f32(ENEMY_SPAWN_TIME), true),
@@ -60,10 +65,11 @@ fn generate_enemies(
     time: Res<Time>,
     mut ev_spawn_enemy: EventWriter<SpawnEnemyEvent>,
     mut q_spawner: Query<&mut EnemySpawner>,
+    mut info: ResMut<EnemySpawnInfo>,
 ) {
     for mut spawner in q_spawner.iter_mut() {
         if spawner.timer.tick(time.delta()).finished() {
-            for _ in 0..10 {
+            for _ in 0..info.group_size {
                 let mut rng = rand::thread_rng();
                 let spawn_pos = Vec2::new(rng.gen_range(-1.0..=1.0), rng.gen_range(-1.0..=1.0))
                     .normalize_or_zero()
@@ -73,6 +79,7 @@ fn generate_enemies(
                     position: spawn_pos.extend(0.3),
                 })
             }
+            info.group_size += 1;
         }
     }
 }

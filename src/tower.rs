@@ -16,6 +16,7 @@ impl Plugin for TowerPlugin {
             .add_event::<SpawnBulletEvent>()
             //.add_system(spawn_tower)
             //.add_system(tower_input)
+            .insert_resource(TowerSpawnCost { cost: 5 })
             .add_system(tower_mouse_input)
             .add_system(spawn_tower_preview)
             .add_system(preview_paid_for)
@@ -45,7 +46,7 @@ impl Tower {
             refund,
             shoot_timer: Timer::from_seconds(1.0, true),
             can_shoot: true,
-            range: 100.0,
+            range: 200.0,
         }
     }
 }
@@ -67,6 +68,10 @@ struct PlaceTowerPreviewEvent {
 // successfully build
 pub struct TowerBuiltEvent {
     pub coords: HexCoords,
+}
+
+struct TowerSpawnCost {
+    cost: u32,
 }
 
 // fn rotate_sprite(
@@ -108,6 +113,8 @@ fn spawn_tower_preview(
     mut commands: Commands,
     mut ev_place_preview: EventReader<PlaceTowerPreviewEvent>,
     q_empty_hexes: Query<(Entity, &Hex), Or<(Without<Tower>, Without<GoldPile>)>>,
+    asset_server: Res<AssetServer>,
+    mut cost: ResMut<TowerSpawnCost>,
 ) {
     for ev in ev_place_preview.iter() {
         for (ent, hex) in q_empty_hexes.iter() {
@@ -117,15 +124,16 @@ fn spawn_tower_preview(
                     .entity(ent)
                     .insert_bundle(PreviewTowerBundle {
                         preview: TowerPreview {},
-                        pile: GoldPile::new(5),
+                        pile: GoldPile::new(cost.cost),
                     })
                     .with_children(|parent| {
                         parent.spawn_bundle(SpriteBundle {
-                            sprite: Sprite {
-                                color: LIGHT_BLUE,
-                                custom_size: Some(Vec2::new(20.0, 20.0)),
-                                ..default()
-                            },
+                            texture: asset_server.load("sprites/UnbuiltTower.png"),
+                            // sprite: Sprite {
+                            //     color: LIGHT_BLUE,
+                            //     custom_size: Some(Vec2::new(20.0, 20.0)),
+                            //     ..default()
+                            // },
                             transform: Transform {
                                 // spawn on top of the underlying hex
                                 translation: Vec3 {
@@ -143,6 +151,7 @@ fn spawn_tower_preview(
 
                 // it is now a Hex, TowerPreview, GoldPile,
                 // with a sprite child
+                cost.cost += 1;
             }
         }
     }
@@ -152,7 +161,8 @@ fn preview_paid_for(
     mut commands: Commands,
     mut ev_pile_cap: EventReader<PileCapEvent>,
     q_preview_towers: Query<(Entity, &Children, &Hex, &GoldPile), With<TowerPreview>>,
-    mut q_child: Query<&mut Sprite>,
+    mut q_child: Query<&mut Handle<Image>>,
+    asset_server: Res<AssetServer>,
 ) {
     for ev in ev_pile_cap.iter() {
         for (ent, children, hex, pile) in q_preview_towers.iter() {
@@ -164,7 +174,8 @@ fn preview_paid_for(
                     let sprite = q_child.get_mut(child);
                     match sprite {
                         Ok(mut s) => {
-                            s.color = DARK_BLUE;
+                            //s.color = DARK_BLUE;
+                            *s = asset_server.load("sprites/Tower.png");
                         }
                         Err(e) => {
                             error!("Error getting child sprite: {e}");
@@ -284,11 +295,15 @@ fn tower_shoot(
 
             if let Some(direction) = direction {
                 //println!("Shoot a bullet");
-                ev_shoot.send(SpawnBulletEvent {
-                    pos: t_trans.translation.truncate(),
-                    dir: direction.truncate(),
-                });
-                t.can_shoot = false;
+                // only shoot if within range
+                if direction.length_squared() < (t.range * t.range) {
+                    ev_shoot.send(SpawnBulletEvent {
+                        pos: t_trans.translation.truncate(),
+                        dir: direction.truncate(),
+                    });
+                    t.can_shoot = false;
+                }
+                
             }
         } else {
             // tick between shots when you can't shoot
@@ -319,16 +334,21 @@ struct SpawnBulletEvent {
     dir: Vec2,
 }
 
-fn spawn_bullet(mut commands: Commands, mut ev_spawn_bullet: EventReader<SpawnBulletEvent>) {
+fn spawn_bullet(
+    mut commands: Commands,
+    mut ev_spawn_bullet: EventReader<SpawnBulletEvent>,
+    asset_server: Res<AssetServer>,
+) {
     for ev in ev_spawn_bullet.iter() {
         //println!("Spawn a bullet. pos: {:?}, dir: {:?}", ev.pos, ev.dir);
         commands
             .spawn_bundle(SpriteBundle {
-                sprite: Sprite {
-                    color: PURPLE,
-                    custom_size: Some(Vec2::new(6.0, 6.0)),
-                    ..default()
-                },
+                texture: asset_server.load("sprites/Missile.png"),
+                // sprite: Sprite {
+                //     color: PURPLE,
+                //     custom_size: Some(Vec2::new(6.0, 6.0)),
+                //     ..default()
+                // },
                 transform: Transform {
                     translation: Vec3 {
                         x: ev.pos.x,
@@ -357,7 +377,7 @@ fn tick_bullet(
 
 fn move_bullet(mut q_bullet: Query<(&mut Transform, &Bullet)>, time: Res<Time>) {
     for (mut trans, b) in q_bullet.iter_mut() {
-        trans.translation += b.dir.extend(0.0) * time.delta_seconds() * 300.0;
+        trans.translation += b.dir.extend(0.0) * time.delta_seconds() * 400.0;
     }
 }
 

@@ -84,7 +84,7 @@ fn boids_enemy(mut q_enemy: Query<(&Transform, &mut Boid), With<Enemy>>) {
 fn move_boids(mut q_boid: Query<(&mut Transform, &mut Boid)>, time: Res<Time>) {
     for (mut trans, mut boid) in q_boid.iter_mut() {
         trans.translation +=
-            boid.sep_dir.normalize_or_zero().extend(0.0) * time.delta_seconds() * 100.0;
+            boid.sep_dir.normalize_or_zero().extend(0.0) * time.delta_seconds() * 60.0;
         boid.sep_dir = Vec2::ZERO;
     }
 }

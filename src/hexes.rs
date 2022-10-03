@@ -79,7 +79,7 @@ fn highlight_hex(
             commands.entity(ent).insert(Selection);
         } else {
             let mut color_mat = materials.get_mut(&color_handle).unwrap();
-            color_mat.color = BLUE;
+            color_mat.color = GREEEN;
         }
     }
 }
@@ -152,7 +152,7 @@ fn colour_neighbours(
 }
 
 fn setup(ev_spawn: EventWriter<HexSpawnEvent>) {
-    spawn_hexes(ev_spawn, 7, 20., Vec2::ZERO);
+    spawn_hexes(ev_spawn, 9, 20., Vec2::ZERO);
 }
 
 fn spawn_hexes(
@@ -271,6 +271,7 @@ fn spawn_hex(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut ev_spawn: EventReader<HexSpawnEvent>,
+    asset_server: Res<AssetServer>,
 ) {
     for ev in ev_spawn.iter() {
         let (position, radius, coords) = (ev.position, ev.radius, ev.coords);
@@ -282,12 +283,46 @@ fn spawn_hex(
                 mesh: meshes
                     .add(shape::RegularPolygon::new(radius, 6).into())
                     .into(),
-                material: materials.add(ColorMaterial::from(BLUE)),
+                material: materials.add(ColorMaterial::from(GREEEN)),
                 transform: Transform::from_translation(position.extend(0.1))
                     .with_rotation(Quat::from_rotation_z(30.0 * DEG_TO_RAD)),
                 ..default()
             })
             .insert(Hex::new(radius, coords));
+        // .with_children(|parent| {
+        //     parent.spawn_bundle(SpriteBundle {
+        //         texture: asset_server.load("sprites/HexGrass.png"),
+        //         transform: Transform {
+        //             // spawn on top of the underlying hex
+        //             translation: Vec3 {
+        //                 x: 0.0,
+        //                 y: 0.0,
+        //                 z: 0.1,
+        //             },
+        //             // undo the hex's rotation
+        //             rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+        //             ..default()
+        //         },
+        //         ..default()
+        //     });
+        // });
+
+        commands.spawn_bundle(SpriteBundle {
+            texture: asset_server.load("sprites/HexGrass.png"),
+            transform: Transform::from_translation(position.extend(0.15)),
+            // transform: Transform {
+            //     // spawn on top of the underlying hex
+            //     translation: Vec3 {
+            //         x: 0.0,
+            //         y: 0.0,
+            //         z: 0.1,
+            //     },
+            //     // undo the hex's rotation
+            //     //rotation: Quat::from_rotation_z(-30.0 * DEG_TO_RAD),
+            //     ..default()
+            // },
+            ..default()
+        });
     }
 }
 
