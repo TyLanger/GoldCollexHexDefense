@@ -1,7 +1,8 @@
 use bevy::{
     prelude::*,
-    render::camera::{RenderTarget, ScalingMode},
+    render::camera::{RenderTarget, ScalingMode}, core_pipeline::clear_color::ClearColorConfig,
 };
+use palette::DARK_BLUE;
 use std::env;
 
 mod boids;
@@ -11,6 +12,7 @@ mod hexes;
 mod input;
 mod palette;
 mod tower;
+mod tutorial;
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
@@ -21,19 +23,35 @@ fn main() {
         .add_plugin(gold::GoldPlugin)
         .add_plugin(enemies::EnemyPlugin)
         .add_plugin(boids::BoidsPlugin)
+        .add_plugin(tutorial::TutorialPlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
+        .insert_resource(WindowDescriptor {
+            width: WIDTH,
+            height: HEIGHT,
+            title: "Gold Collex Hex Defense".to_string(),
+            ..Default::default()
+        })
+        .add_event::<StartSpawningEnemiesEvent>()
         .add_startup_system(setup)
         .add_system(update_mouse_position)
         .run();
 }
 
+pub const HEIGHT: f32 = 720.0;
+pub const WIDTH: f32 = 1280.0;
+
 struct MouseWorldPos(Vec2);
+
+pub struct StartSpawningEnemiesEvent;
 
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(Camera2dBundle {
         projection: OrthographicProjection {
-            scaling_mode: ScalingMode::FixedVertical(700.),
+            scaling_mode: ScalingMode::FixedVertical(720.),
             ..default()
+        },
+        camera_2d: Camera2d {
+            clear_color: ClearColorConfig::Custom(DARK_BLUE)
         },
         ..default()
     });

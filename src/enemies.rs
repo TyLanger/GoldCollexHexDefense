@@ -5,6 +5,7 @@ use rand::prelude::*;
 
 use crate::boids::Boid;
 use crate::tower::bullet_hit;
+use crate::StartSpawningEnemiesEvent;
 use crate::{gold::Gold, palette::*};
 
 const ENEMY_SPAWN_TIME: f32 = 10.0;
@@ -14,7 +15,7 @@ impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEnemyEvent>()
             .insert_resource(EnemySpawnInfo { group_size: 10 })
-            .add_startup_system(setup)
+            .add_system(setup)
             .add_system(generate_enemies)
             .add_system(spawn_enemy)
             .add_system(move_enemies)
@@ -47,6 +48,9 @@ struct EnemySpawner {
     timer: Timer,
 }
 
+#[derive(Component)]
+struct Boss;
+
 struct SpawnEnemyEvent {
     position: Vec3,
 }
@@ -55,10 +59,12 @@ struct EnemySpawnInfo {
     group_size: u32,
 }
 
-fn setup(mut commands: Commands) {
-    commands.spawn().insert(EnemySpawner {
-        timer: Timer::new(Duration::from_secs_f32(ENEMY_SPAWN_TIME), true),
-    });
+fn setup(mut commands: Commands, mut ev_start: EventReader<StartSpawningEnemiesEvent>) {
+    for ev in ev_start.iter() {
+        commands.spawn().insert(EnemySpawner {
+            timer: Timer::new(Duration::from_secs_f32(ENEMY_SPAWN_TIME), true),
+        });
+    }
 }
 
 fn generate_enemies(

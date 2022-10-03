@@ -5,6 +5,7 @@ use crate::{
     gold::*,
     hexes::*,
     palette::*,
+    tutorial::AcceptInput,
 };
 
 pub struct TowerPlugin;
@@ -96,13 +97,16 @@ fn tower_mouse_input(
     mut ev_place_preview: EventWriter<PlaceTowerPreviewEvent>,
     q_selection: Query<(&Transform, &Hex), With<Selection>>,
     input: Res<Input<MouseButton>>,
+    accept: Res<AcceptInput>,
 ) {
-    if input.just_pressed(MouseButton::Left) {
-        for (trans, hex) in q_selection.iter() {
-            ev_place_preview.send(PlaceTowerPreviewEvent {
-                position: trans.translation,
-                coords: hex.coords,
-            });
+    if accept.0 {
+        if input.just_pressed(MouseButton::Left) {
+            for (trans, hex) in q_selection.iter() {
+                ev_place_preview.send(PlaceTowerPreviewEvent {
+                    position: trans.translation,
+                    coords: hex.coords,
+                });
+            }
         }
     }
 }
