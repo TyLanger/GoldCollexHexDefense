@@ -13,7 +13,7 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEnemyEvent>()
-            .insert_resource(EnemySpawnInfo {group_size: 10,})
+            .insert_resource(EnemySpawnInfo { group_size: 10 })
             .add_startup_system(setup)
             .add_system(generate_enemies)
             .add_system(spawn_enemy)

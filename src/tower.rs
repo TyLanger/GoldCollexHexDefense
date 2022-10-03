@@ -303,7 +303,6 @@ fn tower_shoot(
                     });
                     t.can_shoot = false;
                 }
-                
             }
         } else {
             // tick between shots when you can't shoot
@@ -344,6 +343,19 @@ fn spawn_bullet(
         commands
             .spawn_bundle(SpriteBundle {
                 texture: asset_server.load("sprites/Missile.png"),
+                sprite: Sprite {
+                    // Flip the logo to the left
+                    flip_x: {
+                        if ev.dir.x > 0.0 {
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    // And don't flip it upside-down ( the default )
+                    flip_y: false,
+                    ..default()
+                },
                 // sprite: Sprite {
                 //     color: PURPLE,
                 //     custom_size: Some(Vec2::new(6.0, 6.0)),
