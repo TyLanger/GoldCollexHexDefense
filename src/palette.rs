@@ -4,17 +4,19 @@ use bevy::prelude::*;
 
 // this was not worth the effort
 // though Color::hex(#fbd439) would work
-
+#[allow(dead_code)]
 pub const YELLOW_WHITE: Color = Color::rgb(
     (0xfb as f32 / 0xff as f32) as f32,
     (0xff as f32 / 0xff as f32) as f32,
     (0xce as f32 / 0xff as f32) as f32,
 );
+#[allow(dead_code)]
 pub const GOLD: Color = Color::rgb(
     (0xfb as f32 / 0xff as f32) as f32,
     (0xd4 as f32 / 0xff as f32) as f32,
     (0x39 as f32 / 0xff as f32) as f32,
 );
+#[allow(dead_code)]
 pub const ORANGE: Color = Color::rgb(
     (0xf0 as f32 / 0xff as f32) as f32,
     (0x94 as f32 / 0xff as f32) as f32,
@@ -44,6 +46,7 @@ pub const RED_PINK: Color = Color::rgb(
     (0x36 as f32 / 0xff as f32) as f32,
     (0x66 as f32 / 0xff as f32) as f32,
 );
+#[allow(dead_code)]
 pub const CRIMSON: Color = Color::rgb(
     (0xa1 as f32 / 0xff as f32) as f32,
     (0x25 as f32 / 0xff as f32) as f32,
@@ -73,7 +76,7 @@ pub const PURPLE: Color = Color::rgb(
     (0x28 as f32 / 0xff as f32) as f32,
     (0x8b as f32 / 0xff as f32) as f32,
 );
-
+#[allow(dead_code)]
 pub const LIGHT_BLUE: Color = Color::rgb(
     (0x5a as f32 / 0xff as f32) as f32,
     (0xf0 as f32 / 0xff as f32) as f32,
@@ -85,6 +88,7 @@ pub const MEDIUM_BLUE: Color = Color::rgb(
     (0xa0 as f32 / 0xff as f32) as f32,
     (0xc0 as f32 / 0xff as f32) as f32,
 );
+#[allow(dead_code)]
 pub const BLUE: Color = Color::rgb(
     (0x16 as f32 / 0xff as f32) as f32,
     (0x5a as f32 / 0xff as f32) as f32,

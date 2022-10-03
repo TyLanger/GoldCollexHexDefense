@@ -1,13 +1,15 @@
 use bevy::{prelude::*, sprite::collide_aabb::collide, utils::FloatOrd};
 
 use crate::{
-    enemies::{Dead, Enemy},
+    enemies::{BossSpawnEvent, Dead, Enemy},
     gold::*,
     hexes::*,
     palette::*,
     tutorial::AcceptInput,
 };
 
+const TOWER_COST_GROWTH: u32 = 2;
+const TOWERS_TO_SPAWN_BOSS: u32 = 10; //10
 pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
@@ -18,6 +20,10 @@ impl Plugin for TowerPlugin {
             //.add_system(spawn_tower)
             //.add_system(tower_input)
             .insert_resource(TowerSpawnCost { cost: 5 })
+            .insert_resource(TowerCount {
+                count: 0,
+                boss_spawned: false,
+            })
             .add_system(tower_mouse_input)
             .add_system(spawn_tower_preview)
             .add_system(preview_paid_for)
@@ -73,6 +79,11 @@ pub struct TowerBuiltEvent {
 
 struct TowerSpawnCost {
     cost: u32,
+}
+
+struct TowerCount {
+    count: u32,
+    boss_spawned: bool,
 }
 
 // fn rotate_sprite(
@@ -155,7 +166,7 @@ fn spawn_tower_preview(
 
                 // it is now a Hex, TowerPreview, GoldPile,
                 // with a sprite child
-                cost.cost += 1;
+                cost.cost += TOWER_COST_GROWTH;
             }
         }
     }
@@ -167,6 +178,8 @@ fn preview_paid_for(
     q_preview_towers: Query<(Entity, &Children, &Hex, &GoldPile), With<TowerPreview>>,
     mut q_child: Query<&mut Handle<Image>>,
     asset_server: Res<AssetServer>,
+    mut tower_count: ResMut<TowerCount>,
+    mut ev_boss: EventWriter<BossSpawnEvent>,
 ) {
     for ev in ev_pile_cap.iter() {
         for (ent, children, hex, pile) in q_preview_towers.iter() {
@@ -194,6 +207,14 @@ fn preview_paid_for(
                     .insert(Tower::new(ev.coords, (pile.gold_cap as f32 * 0.8) as u32))
                     .insert(GoldSpawner::new());
 
+                if !tower_count.boss_spawned {
+                    tower_count.count += 1;
+                    if tower_count.count == TOWERS_TO_SPAWN_BOSS {
+                        tower_count.boss_spawned = true;
+                        ev_boss.send(BossSpawnEvent);
+                    }
+                }
+
                 break;
             }
         }
@@ -213,6 +234,8 @@ fn remove_tower(
         Option<&TowerPreview>,
         Option<&Tower>,
     )>,
+    mut counter: ResMut<TowerCount>,
+    mut cost: ResMut<TowerSpawnCost>,
     //mut q_child: Query<&mut Sprite>,
 ) {
     for ev in ev_remove.iter() {
@@ -266,7 +289,19 @@ fn remove_tower(
                     Some(_) => {
                         commands.entity(ent).remove::<GoldSpawner>();
                         commands.entity(ent).remove::<Tower>();
-                        // remove surrounding spawners
+
+                        if !counter.boss_spawned {
+                            // probably can't underflow
+                            // can only destroy a tower if it exists
+                            // but to be safe
+                            if counter.count > 1 {
+                                counter.count -= 1;
+                            }
+                        }
+                        // likewise shouldn't need this check either
+                        if cost.cost > TOWER_COST_GROWTH {
+                            cost.cost -= TOWER_COST_GROWTH;
+                        }
                     }
                     None => {
                         //println!("No Tower");

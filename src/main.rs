@@ -1,8 +1,9 @@
 use bevy::{
+    core_pipeline::clear_color::ClearColorConfig,
     prelude::*,
-    render::camera::{RenderTarget, ScalingMode}, core_pipeline::clear_color::ClearColorConfig,
+    render::camera::{RenderTarget, ScalingMode},
 };
-use palette::DARK_BLUE;
+use palette::*; //{DARK_BLUE, LIGHT_BLUE, DARK_ORANGE, BLUE};
 use std::env;
 
 mod boids;
@@ -50,9 +51,10 @@ fn setup(mut commands: Commands) {
             scaling_mode: ScalingMode::FixedVertical(720.),
             ..default()
         },
-        camera_2d: Camera2d {
-            clear_color: ClearColorConfig::Custom(DARK_BLUE)
-        },
+        // default is 0.4 all
+        // camera_2d: Camera2d {
+        //     clear_color: ClearColorConfig::Custom(Color::rgb(0.278, 0.247, 0.202))
+        // },
         ..default()
     });
 }

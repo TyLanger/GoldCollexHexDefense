@@ -1,8 +1,10 @@
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 use bevy::sprite::collide_aabb::collide;
 use bevy::utils::Duration;
 
 use crate::boids::Boid;
+use crate::enemies::{BossCapEvent, Boss};
 use crate::hexes::{Hex, HexCoords, Selection, DEG_TO_RAD};
 use crate::palette::*;
 use crate::tower::{Tower, TowerPreview};
@@ -34,7 +36,9 @@ impl Plugin for GoldPlugin {
             //.add_system(check_spawner)
             .add_system(move_gold)
             .add_system(check_mouse)
-            .add_system(store_gold);
+            .add_system(store_gold)
+            .add_system(make_health_bar)
+            .add_system(animate_health_bar);
     }
 }
 
@@ -120,16 +124,23 @@ pub struct PileRemoveEvent {
 fn store_gold(
     mut commands: Commands,
     q_gold: Query<(Entity, &Transform, &Gold)>,
-    mut q_pile: Query<(&Transform, &mut GoldPile, &Hex)>,
+    mut q_pile: Query<(&Transform, &mut GoldPile, Option<&Hex>)>,
     mut ev_cap: EventWriter<PileCapEvent>,
+    mut ev_boss_cap: EventWriter<BossCapEvent>,
 ) {
     for (gold_ent, gold_trans, _gold) in q_gold.iter() {
         for (pile_trans, mut pile, hex) in q_pile.iter_mut() {
+            let mut b_size = Vec2::new(20., 20.);
+            if let None = hex {
+                // boss
+                b_size = Vec2::new(80., 80.);
+            }
+
             if let Some(_) = collide(
                 gold_trans.translation,
                 Vec2::new(8., 12.),
                 pile_trans.translation,
-                Vec2::new(20., 20.),
+                b_size,
             ) {
                 if pile.count < pile.gold_cap {
                     pile.count += 1;
@@ -137,7 +148,11 @@ fn store_gold(
                     commands.entity(gold_ent).despawn_recursive();
                     if pile.count == pile.gold_cap {
                         //println!("Cap reached!");
-                        ev_cap.send(PileCapEvent { coords: hex.coords });
+                        if let Some(hex) = hex {
+                            ev_cap.send(PileCapEvent { coords: hex.coords });
+                        } else {
+                            ev_boss_cap.send(BossCapEvent);
+                        }
                     }
                 }
             }
@@ -227,6 +242,81 @@ fn remove_pile(
                     //.remove_children(children)
                     .remove::<GoldPile>();
             }
+        }
+    }
+}
+
+#[derive(Component)]
+struct HealthBar;
+
+fn make_health_bar(mut commands: Commands, q_new: Query<(Entity, Option<&Boss>), Added<GoldPile>>) {
+    for (ent, boss) in q_new.iter() {
+        let mut r = Quat::from_rotation_z(-30.0 * DEG_TO_RAD);
+        let mut y = 0.0;
+        let mut x = -8.0;
+        if let Some(_) = boss {
+            r = Quat::default();
+            y = -42.0;
+            x = 0.0;
+        }
+        commands.entity(ent).with_children(|hex| {
+            hex.spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: RED_PINK,
+                    custom_size: Some(Vec2::new(0.0, 6.0)), // 25.0
+                    anchor: Anchor::Center,
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3 {
+                        x: x,
+                        y: -12.0 + y,
+                        z: 0.5,
+                    },
+                    rotation: r,
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(HealthBar );
+
+            hex.spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: DARK_BLUE,
+                    custom_size: Some(Vec2::new(27.0, 8.0)),
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3 {
+                        x: x,
+                        y: -12.0 + y,
+                        z: 0.4,
+                    },
+                    rotation: r,
+                    ..default()
+                },
+                ..default()
+            });
+        });
+    }
+}
+
+fn animate_health_bar(
+    mut commands: Commands,
+    mut q_bar: Query<(Entity, &HealthBar, &Parent, &mut Sprite)>,
+    mut q_piles: Query<&GoldPile>,
+) {
+    for (ent, bar, parent, mut sprite) in q_bar.iter_mut() {
+        let pile = q_piles.get(parent.get());
+        match pile {
+            Ok(p) => {
+                let x = p.count as f32 / p.gold_cap as f32;
+                sprite.custom_size = Some(Vec2::new(x * 25.0, 6.0));
+            },
+            Err(_) => {
+                //println!("Error. No pile");
+                commands.entity(ent).despawn_recursive();
+            },
         }
     }
 }

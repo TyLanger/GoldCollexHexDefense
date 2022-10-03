@@ -4,16 +4,21 @@ use bevy::{prelude::*, utils::FloatOrd};
 use rand::prelude::*;
 
 use crate::boids::Boid;
+use crate::gold::GoldPile;
 use crate::tower::bullet_hit;
 use crate::StartSpawningEnemiesEvent;
 use crate::{gold::Gold, palette::*};
 
 const ENEMY_SPAWN_TIME: f32 = 10.0;
+const BOSS_HEALTH: u32 = 750; //1000
+
 pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SpawnEnemyEvent>()
+            .add_event::<BossSpawnEvent>()
+            .add_event::<BossCapEvent>()
             .insert_resource(EnemySpawnInfo { group_size: 10 })
             .add_system(setup)
             .add_system(generate_enemies)
@@ -21,6 +26,7 @@ impl Plugin for EnemyPlugin {
             .add_system(move_enemies)
             .add_system(grab_gold.before(bullet_hit))
             .add_system(escape)
+            .add_system(spawn_boss)
             // bullet_hit adds Dead. Run before it so it runs next frame
             // and then this entity won't be added to any other queries
             // what's the pattern?
@@ -49,7 +55,10 @@ struct EnemySpawner {
 }
 
 #[derive(Component)]
-struct Boss;
+pub struct Boss;
+
+pub struct BossSpawnEvent;
+pub struct BossCapEvent;
 
 struct SpawnEnemyEvent {
     position: Vec3,
@@ -107,6 +116,29 @@ fn spawn_enemy(mut commands: Commands, mut ev_spawn_enemy: EventReader<SpawnEnem
             })
             .insert(Enemy::new())
             .insert(Boid::new());
+    }
+}
+
+fn spawn_boss(
+    mut commands: Commands,
+    mut ev_boss_spawn: EventReader<BossSpawnEvent>,
+    asset_server: Res<AssetServer>,
+) {
+    for _ev in ev_boss_spawn.iter() {
+        commands
+            .spawn_bundle(SpriteBundle {
+                texture: asset_server.load("sprites/Monster.png"),
+                transform: Transform {
+                    translation: Vec3::new(400.0, 20.0, 0.2),
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(Boss)
+            .insert(GoldPile {
+                count: 0,
+                gold_cap: BOSS_HEALTH,
+            });
     }
 }
 
