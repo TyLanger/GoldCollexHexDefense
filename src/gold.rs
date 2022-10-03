@@ -8,6 +8,8 @@ use crate::palette::*;
 use crate::tower::{Tower, TowerPreview};
 use crate::MouseWorldPos;
 
+const GOLD_SPAWN_TIME: f32 = 10.0;
+
 pub struct GoldPlugin;
 
 impl Plugin for GoldPlugin {
@@ -45,7 +47,7 @@ pub struct GoldSpawner {
 impl GoldSpawner {
     pub fn new() -> Self {
         GoldSpawner {
-            timer: Timer::new(Duration::from_secs_f32(3.0), true),
+            timer: Timer::new(Duration::from_secs_f32(GOLD_SPAWN_TIME), true),
             gold_gen: 1,
         }
     }
@@ -258,7 +260,7 @@ fn generate_gold(
         if spawner.timer.tick(time.delta()).just_finished() {
             // spawn around you
             let neighbours = hex.coords.get_neighbours();
-            for (i, &n) in neighbours.iter().enumerate() {
+            for &n in neighbours.iter() {
                 // check if I can spawn
                 for (trans2, mut hex2) in q_empty_hexes.iter_mut() {
                     if n.is_same(hex2.coords) {

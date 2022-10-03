@@ -1,6 +1,11 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, sprite::collide_aabb::collide, utils::FloatOrd};
 
-use crate::{gold::*, hexes::*, palette::*};
+use crate::{
+    enemies::{Dead, Enemy},
+    gold::*,
+    hexes::*,
+    palette::*,
+};
 
 pub struct TowerPlugin;
 
@@ -8,12 +13,18 @@ impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<TowerBuiltEvent>()
             .add_event::<PlaceTowerPreviewEvent>()
+            .add_event::<SpawnBulletEvent>()
             //.add_system(spawn_tower)
             //.add_system(tower_input)
             .add_system(tower_mouse_input)
             .add_system(spawn_tower_preview)
             .add_system(preview_paid_for)
-            .add_system(remove_tower);
+            .add_system(remove_tower)
+            .add_system(tower_shoot)
+            .add_system(spawn_bullet)
+            .add_system(tick_bullet)
+            .add_system(move_bullet)
+            .add_system(bullet_hit);
         //.add_system(rotate_sprite);
     }
 }
@@ -22,6 +33,21 @@ impl Plugin for TowerPlugin {
 pub struct Tower {
     pub coords: HexCoords,
     pub refund: u32,
+    shoot_timer: Timer,
+    can_shoot: bool,
+    range: f32,
+}
+
+impl Tower {
+    pub fn new(coords: HexCoords, refund: u32) -> Self {
+        Tower {
+            coords,
+            refund,
+            shoot_timer: Timer::from_seconds(1.0, true),
+            can_shoot: true,
+            range: 100.0,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -150,10 +176,7 @@ fn preview_paid_for(
                     .entity(ent)
                     //.remove_children(children)
                     .remove_bundle::<PreviewTowerBundle>()
-                    .insert(Tower {
-                        coords: ev.coords,
-                        refund: (pile.gold_cap as f32 * 0.8) as u32,
-                    })
+                    .insert(Tower::new(ev.coords, (pile.gold_cap as f32 * 0.8) as u32))
                     .insert(GoldSpawner::new());
 
                 break;
@@ -234,6 +257,136 @@ fn remove_tower(
                         //println!("No Tower");
                     }
                 }
+            }
+        }
+    }
+}
+
+fn tower_shoot(
+    mut q_towers: Query<(&Transform, &mut Tower)>,
+    q_enemies: Query<(&Transform, &Enemy)>,
+    mut ev_shoot: EventWriter<SpawnBulletEvent>,
+    time: Res<Time>,
+) {
+    for (t_trans, mut t) in q_towers.iter_mut() {
+        if t.can_shoot {
+            // can shoot
+            // find a target
+            let direction = q_enemies
+                .iter()
+                .min_by_key(|target_transform| {
+                    FloatOrd(Vec3::distance(
+                        target_transform.0.translation,
+                        t_trans.translation,
+                    ))
+                })
+                .map(|closest_target| closest_target.0.translation - t_trans.translation);
+
+            if let Some(direction) = direction {
+                //println!("Shoot a bullet");
+                ev_shoot.send(SpawnBulletEvent {
+                    pos: t_trans.translation.truncate(),
+                    dir: direction.truncate(),
+                });
+                t.can_shoot = false;
+            }
+        } else {
+            // tick between shots when you can't shoot
+            if t.shoot_timer.tick(time.delta()).just_finished() {
+                t.can_shoot = true;
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct Bullet {
+    dir: Vec2,
+    timer: Timer,
+}
+
+impl Bullet {
+    pub fn new(dir: Vec2) -> Self {
+        Bullet {
+            dir,
+            timer: Timer::from_seconds(1.0, false),
+        }
+    }
+}
+
+struct SpawnBulletEvent {
+    pos: Vec2,
+    dir: Vec2,
+}
+
+fn spawn_bullet(mut commands: Commands, mut ev_spawn_bullet: EventReader<SpawnBulletEvent>) {
+    for ev in ev_spawn_bullet.iter() {
+        //println!("Spawn a bullet. pos: {:?}, dir: {:?}", ev.pos, ev.dir);
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: PURPLE,
+                    custom_size: Some(Vec2::new(6.0, 6.0)),
+                    ..default()
+                },
+                transform: Transform {
+                    translation: Vec3 {
+                        x: ev.pos.x,
+                        y: ev.pos.y,
+                        z: 0.5,
+                    },
+                    ..default()
+                },
+                ..default()
+            })
+            .insert(Bullet::new(ev.dir.normalize_or_zero()));
+    }
+}
+
+fn tick_bullet(
+    mut commands: Commands,
+    mut q_bullet: Query<(Entity, &mut Bullet)>,
+    time: Res<Time>,
+) {
+    for (ent, mut b) in q_bullet.iter_mut() {
+        if b.timer.tick(time.delta()).just_finished() {
+            commands.entity(ent).despawn_recursive();
+        }
+    }
+}
+
+fn move_bullet(mut q_bullet: Query<(&mut Transform, &Bullet)>, time: Res<Time>) {
+    for (mut trans, b) in q_bullet.iter_mut() {
+        trans.translation += b.dir.extend(0.0) * time.delta_seconds() * 300.0;
+    }
+}
+
+pub fn bullet_hit(
+    mut commands: Commands,
+    q_bullet: Query<(Entity, &Transform), With<Bullet>>,
+    q_enemies: Query<(Entity, &Transform), (Without<Bullet>, Without<Dead>, With<Enemy>)>,
+) {
+    for (b_ent, b_trans) in q_bullet.iter() {
+        for (e_ent, e_trans) in q_enemies.iter() {
+            if let Some(_) = collide(
+                b_trans.translation,
+                Vec2::new(6., 6.),
+                e_trans.translation,
+                Vec2::new(15., 15.),
+            ) {
+                //println!("Blam!");
+                // Todo drop gold
+                commands.entity(e_ent).insert(Dead);
+
+                commands.entity(b_ent).despawn_recursive();
+
+                // println!("Grabbed a gold");
+                // enemy.has_gold = true;
+                // commands.entity(ent).remove::<Gold>();
+
+                // commands.entity(e_ent).add_child(ent);
+                // gold_trans.translation = Vec3::new(0.0, 0.0, 0.1);
+                break;
             }
         }
     }

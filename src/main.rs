@@ -2,6 +2,7 @@ use bevy::{
     prelude::*,
     render::camera::{RenderTarget, ScalingMode},
 };
+use std::env;
 
 mod boids;
 mod enemies;
@@ -12,6 +13,7 @@ mod palette;
 mod tower;
 
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(hexes::HexPlugin)

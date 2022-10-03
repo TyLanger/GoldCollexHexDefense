@@ -4,8 +4,10 @@ use bevy::{prelude::*, utils::FloatOrd};
 use rand::prelude::*;
 
 use crate::boids::Boid;
+use crate::tower::bullet_hit;
 use crate::{gold::Gold, palette::*};
 
+const ENEMY_SPAWN_TIME: f32 = 10.0;
 pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
@@ -15,8 +17,13 @@ impl Plugin for EnemyPlugin {
             .add_system(generate_enemies)
             .add_system(spawn_enemy)
             .add_system(move_enemies)
-            .add_system(grab_gold)
-            .add_system(escape);
+            .add_system(grab_gold.before(bullet_hit))
+            .add_system(escape)
+            // bullet_hit adds Dead. Run before it so it runs next frame
+            // and then this entity won't be added to any other queries
+            // what's the pattern?
+            // run die code before the thing that sets Dead?
+            .add_system(drop_gold_and_die.before(bullet_hit));
     }
 }
 
@@ -32,6 +39,9 @@ impl Enemy {
 }
 
 #[derive(Component)]
+pub struct Dead;
+
+#[derive(Component)]
 struct EnemySpawner {
     timer: Timer,
 }
@@ -42,7 +52,7 @@ struct SpawnEnemyEvent {
 
 fn setup(mut commands: Commands) {
     commands.spawn().insert(EnemySpawner {
-        timer: Timer::new(Duration::from_secs(10), true),
+        timer: Timer::new(Duration::from_secs_f32(ENEMY_SPAWN_TIME), true),
     });
 }
 
@@ -88,7 +98,7 @@ fn spawn_enemy(mut commands: Commands, mut ev_spawn_enemy: EventReader<SpawnEnem
 }
 
 pub fn move_enemies(
-    mut q_enemies: Query<(&mut Transform, &Enemy)>,
+    mut q_enemies: Query<(&mut Transform, &Enemy), Without<Dead>>,
     q_gold: Query<&Transform, (With<Gold>, Without<Enemy>)>,
     time: Res<Time>,
 ) {
@@ -119,9 +129,13 @@ pub fn move_enemies(
     }
 }
 
+// don't do it this way again
+// despawn the gold
+// add a sprite
+// die and spawn a gold on the corpse
 fn grab_gold(
     mut commands: Commands,
-    mut q_enemies: Query<(Entity, &Transform, &mut Enemy)>,
+    mut q_enemies: Query<(Entity, &Transform, &mut Enemy), Without<Dead>>,
     mut q_gold: Query<(Entity, &mut Transform), (Without<Enemy>, With<Gold>)>,
 ) {
     // when you grab the gold, run away
@@ -130,16 +144,31 @@ fn grab_gold(
     // add something to the enemy so they don't pick up more gold?
     for (ent, mut gold_trans) in q_gold.iter_mut() {
         for (e_ent, e_trans, mut enemy) in q_enemies.iter_mut() {
+            if enemy.has_gold {
+                // don't pick up more gold
+                // could've been an insert and Without<CarryingGold>
+                break;
+            }
             if let Some(_) = collide(
                 gold_trans.translation,
                 Vec2::new(8., 12.),
                 e_trans.translation,
                 Vec2::new(15., 15.),
             ) {
-                println!("Grabbed a gold");
+                //println!("Grabbed a gold: ent: {:?}", ent);
                 enemy.has_gold = true;
                 commands.entity(ent).remove::<Gold>();
 
+                //println!("Add Child. e_ent: {:?}", e_ent);
+                // here
+                // so is the issue:
+                // commands get added
+                // then they get run at the end of frame
+                // if the order is wrong, delete happens before add_child
+                // so this needs to run before delete
+                // would events help?
+                // when hit, send an event to delete the enemy
+                // probably not
                 commands.entity(e_ent).add_child(ent);
                 gold_trans.translation = Vec3::new(0.0, 0.0, 0.1);
                 break;
@@ -148,7 +177,53 @@ fn grab_gold(
     }
 }
 
-fn escape(mut commands: Commands, q_enemies: Query<(Entity, &Enemy, &Transform)>) {
+fn drop_gold_and_die(
+    mut commands: Commands,
+    q_enemies: Query<(Entity, &Enemy, &Transform, Option<&Children>), Added<Dead>>,
+    mut q_child: Query<(&mut Transform, &Sprite), Without<Enemy>>,
+) {
+    for (ent, enemy, e_trans, children) in q_enemies.iter() {
+        if enemy.has_gold {
+            if let Some(children) = children {
+                // print!("Has some children");
+                // println!(" len: {:?}", children.len());
+                for &child in children.iter() {
+                    //commands.entity(ent).remove_children(child);
+                    // println!("Adding gold. len: {:?}", children.len());
+
+                    // print!("Add Gold ");
+                    // println!("child ent: {:?}", child);
+                    // it's probably immediately colliding with gold
+                    commands.entity(child).insert(Gold);
+                    let child_trans = q_child.get_mut(child);
+                    match child_trans {
+                        Ok(mut t) => {
+                            t.0.translation = e_trans.translation;
+                            t.0.translation.z = 0.3;
+                        }
+                        Err(e) => {
+                            error!("Error getting child transform: {e}");
+                        }
+                    }
+                }
+                // print!("Remove children");
+                // println!(" ent: {:?}", ent);
+                commands.entity(ent).remove_children(&children);
+                // pos is (0, 0)
+            }
+        }
+        // kill enemy
+        // print!("Kill Enemy ");
+        // println!("ent: {:?}", ent);
+        // Kill Enemy ent: 217v0
+        // thread 'main' panicked at 'Entity 217v0 does not exist'
+        // did a bullet hit the leftover gold?
+        // maybe rapier_2d has logging for this type of thing
+        commands.entity(ent).despawn();
+    }
+}
+
+fn escape(mut commands: Commands, q_enemies: Query<(Entity, &Enemy, &Transform), Without<Dead>>) {
     for (ent, enemy, trans) in q_enemies.iter() {
         if enemy.has_gold {
             if trans.translation.distance(Vec3::ZERO) > 700.0 {

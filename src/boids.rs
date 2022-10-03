@@ -1,5 +1,5 @@
 use crate::{
-    enemies::{Enemy, move_enemies},
+    enemies::{move_enemies, Enemy},
     gold::{Gold, MouseFollow},
 };
 use bevy::prelude::*;
