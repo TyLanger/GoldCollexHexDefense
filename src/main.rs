@@ -1,3 +1,13 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use bevy::prelude::{App, ClearColor, Color, Msaa, NonSend, WindowDescriptor};
+use bevy::window::WindowId;
+use bevy::winit::WinitWindows;
+use bevy::DefaultPlugins;
+//use bevy_game::GamePlugin;
+use std::io::Cursor;
+use winit::window::Icon;
+
 use bevy::{
     core_pipeline::clear_color::ClearColorConfig,
     prelude::*,
@@ -16,8 +26,9 @@ mod tower;
 mod tutorial;
 
 fn main() {
-    env::set_var("RUST_BACKTRACE", "1");
+    //env::set_var("RUST_BACKTRACE", "1");
     App::new()
+        .insert_resource(Msaa { samples: 1 })
         .add_plugins(DefaultPlugins)
         .add_plugin(hexes::HexPlugin)
         .add_plugin(tower::TowerPlugin)
@@ -30,10 +41,12 @@ fn main() {
             width: WIDTH,
             height: HEIGHT,
             title: "Gold Collex Hex Defense".to_string(),
+            canvas: Some("#bevy".to_owned()),
             ..Default::default()
         })
         .add_event::<StartSpawningEnemiesEvent>()
         .add_startup_system(setup)
+        .add_startup_system(set_window_icon)
         .add_system(update_mouse_position)
         .run();
 }
@@ -89,4 +102,17 @@ fn update_mouse_position(
 
         mouse_pos.0 = world_pos;
     }
+}
+
+// Sets the icon on windows and X11
+fn set_window_icon(windows: NonSend<WinitWindows>) {
+    let primary = windows.get_window(WindowId::primary()).unwrap();
+    let icon_buf = Cursor::new(include_bytes!("../assets/textures/app_icon.png"));
+    if let Ok(image) = image::load(icon_buf, image::ImageFormat::Png) {
+        let image = image.into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        let icon = Icon::from_rgba(rgba, width, height).unwrap();
+        primary.set_window_icon(Some(icon));
+    };
 }
